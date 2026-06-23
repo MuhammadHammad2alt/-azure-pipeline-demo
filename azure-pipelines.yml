@@ -1,0 +1,45 @@
+trigger:
+  - main
+
+variables:
+  azureRMConnection: 'azure-rm-connection'
+  acrConnection: 'acr-service-connection'
+  acrHost: 'hammadregistry2026.azurecr.io'
+  imageRepository: 'demo-web-app'
+  webAppName: 'hammad-container-app'
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: Build
+  displayName: 'CI Stage - Build and Push Image'
+  jobs:
+  - job: BuildAndPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: Docker@2
+      displayName: 'Build and Push Docker Image to ACR'
+      inputs:
+        containerRegistry: '$(acrConnection)'
+        repository: '$(imageRepository)'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        tags: |
+          $(tag)
+          latest
+
+- stage: Deploy
+  displayName: 'CD Stage - Deploy to App Service'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: DeployToAzure
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AzureWebAppContainer@1
+      displayName: 'Deploy Container to Azure App Service'
+      inputs:
+        azureSubscription: '$(azureRMConnection)'
+        appName: '$(webAppName)'
+        containers: '$(acrHost)/$(imageRepository):$(tag)'
